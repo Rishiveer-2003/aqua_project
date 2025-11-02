@@ -37,6 +37,13 @@ streamlit run app.py
 
 Your browser will open the interactive app. Adjust sliders, click "Predict Flood Risk", and view both the ensemble prediction and SHAP explanation.
 
+### Multi‑page navigation
+This app now includes additional pages under `pages/`:
+- Geospatial Risk Analysis: Generates a simulated city grid and renders a flood risk heatmap.
+- Model Performance: Displays metrics and a SHAP global importance summary.
+
+Use the sidebar page selector in Streamlit to navigate.
+
 ## Notes
 - The app aligns user inputs to the training feature set via `feature_columns.json`.
 - If LightGBM isn’t available on your system, training and the app still work with RandomForest.
