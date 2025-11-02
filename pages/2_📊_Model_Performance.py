@@ -22,12 +22,19 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 @st.cache_resource(show_spinner=False)
 def load_models():
     models = {}
-    lgbm_path = os.path.join(BASE_DIR, 'lgbm_model.pkl')
-    rf_path = os.path.join(BASE_DIR, 'rf_model.pkl')
-    if os.path.exists(lgbm_path):
-        models['LightGBM'] = joblib.load(lgbm_path)
-    if os.path.exists(rf_path):
-        models['RandomForest'] = joblib.load(rf_path)
+    paths = {
+        'LightGBM': os.path.join(BASE_DIR, 'lgbm_model.pkl'),
+        'RandomForest': os.path.join(BASE_DIR, 'rf_model.pkl'),
+        'XGBoost': os.path.join(BASE_DIR, 'xgboost_model.pkl'),
+        'SVR': os.path.join(BASE_DIR, 'svr_model.pkl'),
+        'KNN': os.path.join(BASE_DIR, 'knn_model.pkl'),
+    }
+    for name, path in paths.items():
+        if os.path.exists(path):
+            try:
+                models[name] = joblib.load(path)
+            except Exception:
+                pass
     return models
 
 @st.cache_data(show_spinner=False)
@@ -83,7 +90,7 @@ This SHAP summary plot shows which features are most influential across the data
 )
 
 # Choose a tree model for SHAP (LightGBM preferred)
-model_for_shap = models.get('LightGBM') or models.get('RandomForest')
+model_for_shap = models.get('LightGBM') or models.get('XGBoost') or models.get('RandomForest')
 if model_for_shap is not None:
     with st.spinner('Computing SHAP values...'):
         explainer = shap.TreeExplainer(model_for_shap)

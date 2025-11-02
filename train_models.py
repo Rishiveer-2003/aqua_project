@@ -11,12 +11,20 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 import numpy as np
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
 
 try:
     from lightgbm import LGBMRegressor
     LIGHTGBM_AVAILABLE = True
 except Exception:
     LIGHTGBM_AVAILABLE = False
+
+try:
+    from xgboost import XGBRegressor
+    XGBOOST_AVAILABLE = True
+except Exception:
+    XGBOOST_AVAILABLE = False
 
 
 def main():
@@ -77,6 +85,29 @@ def main():
     rf = RandomForestRegressor(n_estimators=50, random_state=42)
     rf.fit(X_train, y_train)
 
+    # Model C: XGBoost Regressor (optional)
+    xgb = None
+    if XGBOOST_AVAILABLE:
+        try:
+            print("  - Training XGBoost Regressor...")
+            xgb = XGBRegressor(random_state=42, n_estimators=200, max_depth=6, learning_rate=0.1, subsample=0.9, colsample_bytree=0.9, reg_lambda=1.0, tree_method='hist', objective='reg:squarederror', eval_metric='rmse')
+            xgb.fit(X_train, y_train)
+        except Exception as e:
+            print(f"  ! XGBoost training failed: {e}")
+            xgb = None
+    else:
+        print("  ! XGBoost not available; skipping XGBoost model.")
+
+    # Model D: Support Vector Regressor
+    print("  - Training SVR...")
+    svr = SVR(kernel='rbf', C=1.0, epsilon=0.1)
+    svr.fit(X_train, y_train)
+
+    # Model E: K-Neighbors Regressor
+    print("  - Training KNN Regressor...")
+    knn = KNeighborsRegressor(n_neighbors=7)
+    knn.fit(X_train, y_train)
+
     print("Models trained successfully.")
 
     # 4. Evaluate Model Performance (regression metrics)
@@ -93,6 +124,12 @@ def main():
         print("  - LightGBM: skipped")
 
     print_regression_report("Random Forest", rf)
+    if xgb is not None:
+        print_regression_report("XGBoost", xgb)
+    else:
+        print("  - XGBoost: skipped")
+    print_regression_report("SVR", svr)
+    print_regression_report("KNN", knn)
 
     # 5. Save the Trained Models + Feature Columns
     print("Step 5/5: Saving models...")
@@ -100,16 +137,22 @@ def main():
     if lgbm is not None:
         joblib.dump(lgbm, os.path.join(out_dir, 'lgbm_model.pkl'), compress=9)
     joblib.dump(rf, os.path.join(out_dir, 'rf_model.pkl'), compress=9)
+    if xgb is not None:
+        joblib.dump(xgb, os.path.join(out_dir, 'xgboost_model.pkl'), compress=9)
+    joblib.dump(svr, os.path.join(out_dir, 'svr_model.pkl'), compress=9)
+    joblib.dump(knn, os.path.join(out_dir, 'knn_model.pkl'), compress=9)
 
     feature_cols_path = os.path.join(out_dir, 'feature_columns.json')
     with open(feature_cols_path, 'w', encoding='utf-8') as f:
         json.dump(list(X.columns), f, indent=2)
 
     print("\n--- Process Complete ---")
+    saved = ["rf_model.pkl", "svr_model.pkl", "knn_model.pkl"]
     if lgbm is not None:
-        print("Models saved as 'lgbm_model.pkl' and 'rf_model.pkl'")
-    else:
-        print("Model saved as 'rf_model.pkl' (LightGBM unavailable)")
+        saved.append("lgbm_model.pkl")
+    if xgb is not None:
+        saved.append("xgboost_model.pkl")
+    print("Models saved:", ", ".join(saved))
     print("Feature columns saved as 'feature_columns.json'")
 
 

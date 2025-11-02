@@ -3,6 +3,7 @@ import os
 
 import joblib
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import streamlit as st
 import shap
@@ -32,14 +33,21 @@ BASE_DIR = os.path.dirname(__file__)
 # Use st.cache_resource to load models only once
 @st.cache_resource(show_spinner=False)
 def load_models():
-    lgbm_model = None
-    lgbm_path = os.path.join(BASE_DIR, 'lgbm_model.pkl')
-    rf_path = os.path.join(BASE_DIR, 'rf_model.pkl')
-
-    if os.path.exists(lgbm_path):
-        lgbm_model = joblib.load(lgbm_path)
-    rf_model = joblib.load(rf_path)
-    return lgbm_model, rf_model
+    models = {}
+    paths = {
+        'LightGBM': os.path.join(BASE_DIR, 'lgbm_model.pkl'),
+        'RandomForest': os.path.join(BASE_DIR, 'rf_model.pkl'),
+        'XGBoost': os.path.join(BASE_DIR, 'xgboost_model.pkl'),
+        'SVR': os.path.join(BASE_DIR, 'svr_model.pkl'),
+        'KNN': os.path.join(BASE_DIR, 'knn_model.pkl'),
+    }
+    for name, path in paths.items():
+        if os.path.exists(path):
+            try:
+                models[name] = joblib.load(path)
+            except Exception:
+                pass
+    return models
 
 @st.cache_resource(show_spinner=False)
 def load_feature_columns():
@@ -50,7 +58,7 @@ def load_feature_columns():
     # Fallback to current feature set order if json missing
     return list(FEATURE_RANGES.keys())
 
-lgbm_model, rf_model = load_models()
+models = load_models()
 feature_columns = load_feature_columns()
 
 # --- Web App Interface ---
@@ -102,26 +110,19 @@ if st.button('Predict Flood Risk', width='stretch'):
 
     probs = []
     labels = []
-    if lgbm_model is not None:
-        lgbm_proba = predict_probability(lgbm_model, input_df)
-        probs.append(lgbm_proba)
-        labels.append(("LightGBM Prediction", lgbm_proba))
-    rf_proba = predict_probability(rf_model, input_df)
-    probs.append(rf_proba)
-    labels.append(("Random Forest Prediction", rf_proba))
+    for name, model in models.items():
+        proba = predict_probability(model, input_df)
+        probs.append(proba)
+        labels.append((f"{name} Prediction", proba))
 
     # Calculate the ensemble (average) probability
     ensemble_proba = sum(probs) / len(probs)
 
     # Display the results
-    cols = st.columns(3)
-    if len(labels) == 2:
-        cols[0].metric(labels[0][0], f"{labels[0][1]:.2%}")
-        cols[1].metric(labels[1][0], f"{labels[1][1]:.2%}")
-    else:
-        cols[0].metric(labels[0][0], f"{labels[0][1]:.2%}")
-        cols[1].metric("Random Forest Prediction", f"{rf_proba:.2%}")
-    cols[2].metric("Final Ensemble Prediction", f"{ensemble_proba:.2%}", delta_color="off")
+    cols = st.columns(min(5, max(2, len(labels))))
+    for i, (label, val) in enumerate(labels[:len(cols)]):
+        cols[i].metric(label, f"{val:.2%}")
+    st.metric("Final Ensemble Prediction", f"{ensemble_proba:.2%}", delta_color="off")
 
     st.progress(float(ensemble_proba))
 
@@ -138,8 +139,8 @@ if st.button('Predict Flood Risk', width='stretch'):
     )
 
     try:
-        # Prefer LightGBM for SHAP if available, else use RF (TreeExplainer supports both)
-        model_for_shap = lgbm_model if lgbm_model is not None else rf_model
+        # Prefer LightGBM, then XGBoost, then RandomForest for SHAP
+        model_for_shap = models.get('LightGBM') or models.get('XGBoost') or models.get('RandomForest')
         explainer = shap.TreeExplainer(model_for_shap)
         shap_values = explainer.shap_values(input_df)
 
