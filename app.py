@@ -58,12 +58,13 @@ def get_rainfall_forecast(lat: float, lon: float):
         "forecast_days": 2,
     }
     responses = client.weather_api(url, params=params)
-    # The client returns a single response object
-    response = responses
+    # The client can return a list of response objects; select the first
+    response = responses[0] if isinstance(responses, (list, tuple)) else responses
     daily = response.Daily()
     precip = daily.Variables(0).ValuesAsNumpy()
-    # Index 1 is tomorrow
-    return float(precip[1])
+    # Index 1 is tomorrow when present; fallback to first value
+    val = precip[1] if getattr(precip, 'shape', None) and precip.shape[0] > 1 else precip[0]
+    return float(val)
 
 # Use st.cache_resource to load models only once
 @st.cache_resource(show_spinner=False)

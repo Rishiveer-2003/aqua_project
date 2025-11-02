@@ -69,10 +69,13 @@ def get_rainfall_forecast(lat: float, lon: float):
         "forecast_days": 2,
     }
     responses = client.weather_api(url, params=params)
-    response = responses
+    # API can return a list; pick the first response object
+    response = responses[0] if isinstance(responses, (list, tuple)) else responses
     daily = response.Daily()
     precip = daily.Variables(0).ValuesAsNumpy()
-    return float(precip[1])
+    # Index 1 is tomorrow when available; otherwise fallback to first value
+    val = precip[1] if getattr(precip, 'shape', None) and precip.shape[0] > 1 else precip[0]
+    return float(val)
 
 # Map rainfall (mm) to MonsoonIntensity feature scale [0..16]
 def map_rainfall_to_intensity(rainfall_mm: float) -> int:
