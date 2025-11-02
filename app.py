@@ -7,6 +7,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import shap
+import openmeteo_requests
+import requests_cache
+from retry_requests import retry
+from geopy.geocoders import Nominatim
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -29,6 +33,37 @@ FEATURE_RANGES = {
 }
 
 BASE_DIR = os.path.dirname(__file__)
+@st.cache_data(show_spinner=False)
+def get_coords(city_name: str):
+    geolocator = Nominatim(user_agent="aqua_flood_app")
+    try:
+        location = geolocator.geocode(city_name)
+        if location:
+            return float(location.latitude), float(location.longitude)
+    except Exception as e:
+        st.error(f"Geocoding error: {e}")
+    return None, None
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_rainfall_forecast(lat: float, lon: float):
+    """Return tomorrow's total precipitation (mm) using Open-Meteo daily precipitation_sum."""
+    cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
+    session = retry(cache_session, retries=5, backoff_factor=0.2)
+    client = openmeteo_requests.Client(session=session)
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "daily": "precipitation_sum",
+        "forecast_days": 2,
+    }
+    responses = client.weather_api(url, params=params)
+    # The client returns a single response object
+    response = responses
+    daily = response.Daily()
+    precip = daily.Variables(0).ValuesAsNumpy()
+    # Index 1 is tomorrow
+    return float(precip[1])
 
 # Use st.cache_resource to load models only once
 @st.cache_resource(show_spinner=False)
@@ -73,6 +108,21 @@ st.write(
 
 # --- Sidebar for User Input ---
 st.sidebar.header('Adjust Scenario Features')
+
+# Optional: quick live weather (tomorrow rainfall) helper
+with st.sidebar.expander('Live Weather (optional)'):
+    city_q = st.text_input('City name', placeholder='e.g., Mumbai')
+    if st.button('Get Tomorrow Rainfall', key='btn_weather'):
+        if not city_q.strip():
+            st.warning('Please enter a city name.')
+        else:
+            latlon = get_coords(city_q.strip())
+            if latlon[0] is None:
+                st.error('Could not geocode that city. Try another one.')
+            else:
+                rain = get_rainfall_forecast(latlon[0], latlon[1])
+                st.metric('Tomorrow Rainfall (mm)', f"{rain:.1f} mm")
+                st.caption('Source: Open‑Meteo daily precipitation_sum')
 
 def user_input_features():
     data = {}
