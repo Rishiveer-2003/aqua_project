@@ -289,6 +289,22 @@ CITY_PROFILES = {
         'CoastalVulnerability': 1, 'Landslides': 5, 'Watersheds': 9,
         'DeterioratingWaterQuality': 10, 'PopulationScore': 13, 'WetlandLoss': 9,
         'InadequatePlanning': 10, 'PoliticalFactors': 8
+    },
+    "Goa": {
+        'TopographyDrainage': 8, 'RiverManagement': 9, 'Deforestation': 12, 'Urbanization': 11,
+        'ClimateChange': 14, 'DamsQuality': 9, 'Siltation': 10, 'AgriculturalPractices': 7,
+        'Encroachments': 12, 'IneffectiveDisasterPreparedness': 10, 'DrainageSystems': 8,
+        'CoastalVulnerability': 18, 'Landslides': 10, 'Watersheds': 8,
+        'DeterioratingWaterQuality': 11, 'PopulationScore': 12, 'WetlandLoss': 13,
+        'InadequatePlanning': 11, 'PoliticalFactors': 9
+    },
+    "Navi Mumbai": {
+        'TopographyDrainage': 5, 'RiverManagement': 7, 'Deforestation': 11, 'Urbanization': 16,
+        'ClimateChange': 13, 'DamsQuality': 10, 'Siltation': 12, 'AgriculturalPractices': 3,
+        'Encroachments': 13, 'IneffectiveDisasterPreparedness': 10, 'DrainageSystems': 8,
+        'CoastalVulnerability': 17, 'Landslides': 6, 'Watersheds': 7,
+        'DeterioratingWaterQuality': 12, 'PopulationScore': 17, 'WetlandLoss': 14,
+        'InadequatePlanning': 10, 'PoliticalFactors': 9
     }
 }
 
