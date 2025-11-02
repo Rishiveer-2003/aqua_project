@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pydeck as pdk
 import streamlit as st
+from geopy.geocoders import Nominatim
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -59,19 +60,38 @@ Use the controls to set baseline values and vary one feature from West → East 
 )
 
 @st.cache_data(show_spinner=False)
-def create_grid(grid_size: int):
-    # Simulated grid centered in India for neutrality
-    center_lat, center_lon = 22.5, 82.5
+def create_grid(grid_size: int, center_lat: float, center_lon: float):
+    # Build a grid around provided center
     lat_range = np.linspace(center_lat - 0.5, center_lat + 0.5, grid_size)
     lon_range = np.linspace(center_lon - 0.5, center_lon + 0.5, grid_size)
     lon_grid, lat_grid = np.meshgrid(lon_range, lat_range)
     return pd.DataFrame({'latitude': lat_grid.ravel(), 'longitude': lon_grid.ravel()})
 
+@st.cache_data(show_spinner=False)
+def get_coords(city_name: str):
+    geolocator = Nominatim(user_agent="aqua_flood_app")
+    try:
+        location = geolocator.geocode(city_name)
+        if location:
+            return float(location.latitude), float(location.longitude)
+    except Exception as e:
+        st.error(f"Geocoding error: {e}")
+    return None, None
+
 # Sidebar controls
 st.sidebar.header('Geospatial Scenario Controls')
 
 grid_size = st.sidebar.slider('Grid Size (N x N)', min_value=10, max_value=50, value=25, step=5)
-grid_df = create_grid(grid_size)
+city = st.sidebar.text_input('Center grid by city (optional)', placeholder='e.g., Mumbai')
+if city.strip():
+    lat, lon = get_coords(city.strip())
+    if lat is None:
+        st.info('Using default center (India) because the city could not be geocoded.')
+        lat, lon = 22.5, 82.5
+else:
+    lat, lon = 22.5, 82.5
+
+grid_df = create_grid(grid_size, lat, lon)
 
 # Pick a feature to vary across the map; limit to features known by model and with defined ranges
 vary_options = [f for f in feature_columns if f in FEATURE_RANGES]
