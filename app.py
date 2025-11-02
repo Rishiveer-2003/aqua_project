@@ -110,6 +110,11 @@ st.write(
 # --- Sidebar for User Input ---
 st.sidebar.header('Adjust Scenario Features')
 
+# Model selection (single vs ensemble)
+available_models = list(models.keys())
+model_options = ['Ensemble (average)'] + available_models if len(available_models) > 1 else available_models
+chosen_model = st.sidebar.selectbox('Model selection', model_options, help='Pick one model or use the ensemble average')
+
 # Optional: quick live weather (tomorrow rainfall) helper
 with st.sidebar.expander('Live Weather (optional)'):
     city_q = st.text_input('City name', placeholder='e.g., Mumbai')
@@ -159,23 +164,30 @@ if st.button('Predict Flood Risk', width='stretch'):
         val = float(model.predict(X).item())
         return min(max(val, 0.0), 1.0)
 
-    probs = []
-    labels = []
-    for name, model in models.items():
-        proba = predict_probability(model, input_df)
-        probs.append(proba)
-        labels.append((f"{name} Prediction", proba))
-
-    # Calculate the ensemble (average) probability
-    ensemble_proba = sum(probs) / len(probs)
-
-    # Display the results
-    cols = st.columns(min(5, max(2, len(labels))))
-    for i, (label, val) in enumerate(labels[:len(cols)]):
-        cols[i].metric(label, f"{val:.2%}")
-    st.metric("Final Ensemble Prediction", f"{ensemble_proba:.2%}", delta_color="off")
-
-    st.progress(float(ensemble_proba))
+    if chosen_model == 'Ensemble (average)' and len(available_models) > 1:
+        probs = []
+        labels = []
+        for name, model in models.items():
+            proba = predict_probability(model, input_df)
+            probs.append(proba)
+            labels.append((f"{name} Prediction", proba))
+        ensemble_proba = sum(probs) / len(probs)
+        cols = st.columns(min(5, max(2, len(labels))))
+        for i, (label, val) in enumerate(labels[:len(cols)]):
+            cols[i].metric(label, f"{val:.2%}")
+        st.metric("Final Ensemble Prediction", f"{ensemble_proba:.2%}", delta_color="off")
+        st.progress(float(ensemble_proba))
+        final_proba = ensemble_proba
+        model_for_explain = models.get('LightGBM') or models.get('XGBoost') or models.get('RandomForest')
+    else:
+        if chosen_model not in models:
+            st.error('Selected model is not available. Try Ensemble or another model.')
+            st.stop()
+        final_proba = predict_probability(models[chosen_model], input_df)
+        st.metric(f"{chosen_model} Prediction", f"{final_proba:.2%}")
+        st.progress(float(final_proba))
+        # Prefer the selected model for SHAP if it's tree-based
+        model_for_explain = models[chosen_model] if chosen_model in ('LightGBM', 'XGBoost', 'RandomForest') else (models.get('LightGBM') or models.get('XGBoost') or models.get('RandomForest'))
 
     # --- Explainability (USP #2: XAI with SHAP) ---
     st.header('Why Did the Model Make This Prediction?')
@@ -190,8 +202,8 @@ if st.button('Predict Flood Risk', width='stretch'):
     )
 
     try:
-        # Prefer LightGBM, then XGBoost, then RandomForest for SHAP
-        model_for_shap = models.get('LightGBM') or models.get('XGBoost') or models.get('RandomForest')
+        # Use selected tree model when possible, else fallback
+        model_for_shap = model_for_explain
         explainer = shap.TreeExplainer(model_for_shap)
         shap_values = explainer.shap_values(input_df)
 

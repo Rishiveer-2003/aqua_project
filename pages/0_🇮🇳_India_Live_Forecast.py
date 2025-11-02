@@ -337,12 +337,33 @@ models = load_models()
 feature_columns = load_feature_columns()
 
 st.title('🇮🇳 India Live Flood Forecast')
-st.write('Select a city to fetch tomorrow\'s rainfall via Open‑Meteo, map it to Monsoon Intensity,\nthen simulate a neighborhood heatmap using the city\'s risk profile and our ML ensemble.')
+st.write("Select a city to fetch tomorrow's rainfall via Open‑Meteo, map it to Monsoon Intensity,\nthen simulate a neighborhood heatmap using the city's risk profile and our ML models.")
 
 # Sidebar controls
 st.sidebar.header('Forecast Controls')
-city_selection = st.sidebar.selectbox("Choose a city:", list(CITY_PROFILES.keys()))
+
+# City search + dropdown (type to search)
+_all_cities = list(CITY_PROFILES.keys())
+city_query = st.sidebar.text_input('Search city (from predefined list)', placeholder='Start typing e.g., Mumbai')
+if city_query.strip():
+    filtered = [c for c in _all_cities if city_query.strip().lower() in c.lower()]
+    if not filtered:
+        st.sidebar.info('No match found. Showing all cities.')
+        filtered = _all_cities
+else:
+    filtered = _all_cities
+city_selection = st.sidebar.selectbox('Choose a city', filtered, index=0, help='You can type to search')
+
 grid_size = st.sidebar.slider('Grid Size (N x N)', min_value=10, max_value=35, value=15, step=5)
+
+# Model selection (includes Ensemble)
+available_models = list(models.keys())
+model_options = ['Ensemble (average)'] + available_models if len(available_models) > 1 else available_models
+chosen_model = st.sidebar.selectbox('Model to use', model_options, help='Pick a single model or use the ensemble average')
+
+# Map layer style
+map_style_opt = st.sidebar.selectbox('Map layer', ['Heatmap', 'Hexagon', 'Scatter'], index=0,
+                                     help='Switch between heatmap, hexagon binning, or scatter visualization')
 
 if st.button(f'Get Forecast for {city_selection}', type='primary'):
     lat, lon = get_coords(city_selection)
@@ -387,27 +408,33 @@ if st.button(f'Get Forecast for {city_selection}', type='primary'):
             model_input[col] = 0
     model_input = model_input[feature_columns]
 
-    # Predict with ensemble
+    # Predict with selected model or ensemble
     def predict_prob(mdl, X):
         if hasattr(mdl, 'predict_proba'):
             return mdl.predict_proba(X)[:, 1]
         vals = mdl.predict(X)
         return np.clip(np.asarray(vals, dtype=float), 0.0, 1.0)
 
-    preds_list = []
-    for name, mdl in models.items():
-        try:
-            preds_list.append(predict_prob(mdl, model_input))
-        except Exception:
-            pass
+    if chosen_model == 'Ensemble (average)' and len(available_models) > 1:
+        preds_list = []
+        for name, mdl in models.items():
+            try:
+                preds_list.append(predict_prob(mdl, model_input))
+            except Exception:
+                pass
+        if not preds_list:
+            st.error('No models available to generate predictions.')
+            st.stop()
+        preds = np.mean(np.vstack(preds_list), axis=0)
+    else:
+        # Single model path
+        if chosen_model not in models:
+            st.error('Selected model is not available. Try Ensemble or another model.')
+            st.stop()
+        preds = predict_prob(models[chosen_model], model_input)
 
-    if not preds_list:
-        st.error('No models available to generate predictions.')
-        st.stop()
-
-    ensemble_preds = np.mean(np.vstack(preds_list), axis=0)
-    prediction_data['risk'] = ensemble_preds
-    overall_risk = float(np.mean(ensemble_preds))
+    prediction_data['risk'] = preds
+    overall_risk = float(np.mean(preds))
 
     st.header(f'Flood Risk Prediction for {city_selection}')
     if overall_risk >= 0.55:
@@ -417,16 +444,38 @@ if st.button(f'Get Forecast for {city_selection}', type='primary'):
     else:
         st.success(f"LOW OVERALL RISK ({overall_risk:.1%})")
 
-    # Heatmap
-    st.subheader("Simulated Risk Distribution Heatmap")
-    layer = pdk.Layer(
-        'HeatmapLayer',
-        data=prediction_data,
-        get_position='[longitude, latitude]',
-        get_weight='risk',
-        opacity=0.8,
-        aggregation=pdk.types.String('MEAN'),
-    )
+    # Map visualization
+    st.subheader("Simulated Risk Distribution Map")
+    if map_style_opt == 'Heatmap':
+        layer = pdk.Layer(
+            'HeatmapLayer',
+            data=prediction_data,
+            get_position='[longitude, latitude]',
+            get_weight='risk',
+            opacity=0.85,
+            aggregation=pdk.types.String('MEAN'),
+        )
+    elif map_style_opt == 'Hexagon':
+        layer = pdk.Layer(
+            'HexagonLayer',
+            data=prediction_data,
+            get_position='[longitude, latitude]',
+            elevation_scale=50,
+            elevation_range=[0, 3000],
+            extruded=True,
+            radius=200,
+            get_elevation='risk * 3000',
+            get_color='[risk * 255, (1-risk) * 255, 120]'
+        )
+    else:
+        layer = pdk.Layer(
+            'ScatterplotLayer',
+            data=prediction_data,
+            get_position='[longitude, latitude]',
+            get_fill_color='[risk * 255, (1-risk) * 255, 120, 200]',
+            get_radius=120,
+            pickable=True,
+        )
 
     view_state = pdk.ViewState(
         latitude=float(prediction_data['latitude'].mean()),
@@ -445,6 +494,14 @@ if st.button(f'Get Forecast for {city_selection}', type='primary'):
         },
     )
     st.pydeck_chart(deck)
+
+    # Quick metrics row
+    m1, m2, m3 = st.columns(3)
+    m1.metric('Tomorrow Rainfall', f"{rainfall_mm:.1f} mm")
+    m2.metric('Monsoon Intensity', f"{monsoon_intensity}")
+    m3.metric('Overall Risk', f"{overall_risk:.1%}")
+
+    st.caption('Tip: Use the sidebar to switch the model (single vs ensemble) and map layer style.')
 
     # Optional: allow download
     st.download_button(

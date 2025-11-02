@@ -18,15 +18,22 @@ st.set_page_config(
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
 @st.cache_resource(show_spinner=False)
-def load_model():
-    lgbm_path = os.path.join(BASE_DIR, 'lgbm_model.pkl')
-    rf_path = os.path.join(BASE_DIR, 'rf_model.pkl')
-    model = None
-    if os.path.exists(lgbm_path):
-        model = joblib.load(lgbm_path)
-    else:
-        model = joblib.load(rf_path)
-    return model
+def load_models():
+    models = {}
+    paths = {
+        'LightGBM': os.path.join(BASE_DIR, 'lgbm_model.pkl'),
+        'RandomForest': os.path.join(BASE_DIR, 'rf_model.pkl'),
+        'XGBoost': os.path.join(BASE_DIR, 'xgboost_model.pkl'),
+        'SVR': os.path.join(BASE_DIR, 'svr_model.pkl'),
+        'KNN': os.path.join(BASE_DIR, 'knn_model.pkl'),
+    }
+    for name, path in paths.items():
+        if os.path.exists(path):
+            try:
+                models[name] = joblib.load(path)
+            except Exception:
+                pass
+    return models
 
 @st.cache_resource(show_spinner=False)
 def load_feature_columns():
@@ -48,7 +55,7 @@ FEATURE_RANGES = {
     'InadequatePlanning': (0, 16, 8), 'PoliticalFactors': (0, 16, 8)
 }
 
-model = load_model()
+models = load_models()
 feature_columns = load_feature_columns()
 
 st.title('🌍 Geospatial Risk Analysis')
@@ -82,6 +89,9 @@ def get_coords(city_name: str):
 st.sidebar.header('Geospatial Scenario Controls')
 
 grid_size = st.sidebar.slider('Grid Size (N x N)', min_value=10, max_value=50, value=25, step=5)
+map_style_opt = st.sidebar.selectbox('Map layer', ['Heatmap', 'Hexagon', 'Scatter'], index=0)
+model_options = ['Ensemble (average)'] + list(models.keys()) if len(models) > 1 else list(models.keys())
+chosen_model = st.sidebar.selectbox('Model to use', model_options)
 city = st.sidebar.text_input('Center grid by city (optional)', placeholder='e.g., Mumbai')
 if city.strip():
     lat, lon = get_coords(city.strip())
@@ -134,8 +144,29 @@ if st.button('Generate Risk Heatmap', type='primary'):
     model_input = data[feature_columns]
 
     # Predict and clip to [0,1]
-    preds = model.predict(model_input)
-    preds = np.clip(np.asarray(preds, dtype=float), 0.0, 1.0)
+    def predict_prob(mdl, X):
+        if hasattr(mdl, 'predict_proba'):
+            return mdl.predict_proba(X)[:, 1]
+        vals = mdl.predict(X)
+        return np.clip(np.asarray(vals, dtype=float), 0.0, 1.0)
+
+    if chosen_model == 'Ensemble (average)' and len(models) > 1:
+        preds_list = []
+        for name, mdl in models.items():
+            try:
+                preds_list.append(predict_prob(mdl, model_input))
+            except Exception:
+                pass
+        if preds_list:
+            preds = np.mean(np.vstack(preds_list), axis=0)
+        else:
+            st.error('No models available to generate predictions.')
+            st.stop()
+    else:
+        if chosen_model not in models:
+            st.error('Selected model is not available.')
+            st.stop()
+        preds = predict_prob(models[chosen_model], model_input)
 
     prediction_data = grid_df.copy()
     prediction_data['flood_probability'] = preds
@@ -143,15 +174,37 @@ if st.button('Generate Risk Heatmap', type='primary'):
     st.header('Flood Risk Heatmap')
     st.caption(f"Varying: {feature_to_vary.replace('_',' ').title()} (west→east gradient). Other features held at baseline.")
 
-    # Heatmap layer
-    heatmap_layer = pdk.Layer(
-        'HeatmapLayer',
-        data=prediction_data,
-        get_position='[longitude, latitude]',
-        get_weight='flood_probability',
-        aggregation=pdk.types.String('MEAN'),
-        opacity=0.9,
-    )
+    # Map layer
+    if map_style_opt == 'Heatmap':
+        map_layer = pdk.Layer(
+            'HeatmapLayer',
+            data=prediction_data,
+            get_position='[longitude, latitude]',
+            get_weight='flood_probability',
+            aggregation=pdk.types.String('MEAN'),
+            opacity=0.9,
+        )
+    elif map_style_opt == 'Hexagon':
+        map_layer = pdk.Layer(
+            'HexagonLayer',
+            data=prediction_data,
+            get_position='[longitude, latitude]',
+            elevation_scale=50,
+            elevation_range=[0, 3000],
+            extruded=True,
+            radius=200,
+            get_elevation='flood_probability * 3000',
+            get_color='[flood_probability * 255, (1-flood_probability) * 255, 120]'
+        )
+    else:
+        map_layer = pdk.Layer(
+            'ScatterplotLayer',
+            data=prediction_data,
+            get_position='[longitude, latitude]',
+            get_fill_color='[flood_probability * 255, (1-flood_probability) * 255, 120, 200]',
+            get_radius=120,
+            pickable=True,
+        )
 
     view_state = pdk.ViewState(
         latitude=float(prediction_data['latitude'].mean()),
@@ -163,7 +216,7 @@ if st.button('Generate Risk Heatmap', type='primary'):
     deck = pdk.Deck(
         map_style=None,  # Avoid Mapbox key requirement; renders without basemap
         initial_view_state=view_state,
-        layers=[heatmap_layer],
+        layers=[map_layer],
         tooltip={
             'html': '<b>Flood Probability:</b> {flood_probability}',
             'style': {'color': 'white'}
@@ -172,4 +225,4 @@ if st.button('Generate Risk Heatmap', type='primary'):
 
     st.pydeck_chart(deck)
 
-    st.info('Tip: In a real deployment, you can supply a MAPBOX_API_KEY for prettier base maps.')
+    st.info('Tip: Switch the map layer in the sidebar. Supply a MAPBOX_API_KEY for prettier base maps (optional).')
