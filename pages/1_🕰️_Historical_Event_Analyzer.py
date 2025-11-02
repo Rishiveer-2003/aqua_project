@@ -1,25 +1,26 @@
 import json
 import os
+import datetime
 
 import joblib
 import numpy as np
 import pandas as pd
-import pydeck as pdk
 import streamlit as st
 from geopy.geocoders import Nominatim
 import openmeteo_requests
 import requests_cache
 from retry_requests import retry
 
-# --- Page Configuration ---
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="India Live Forecast",
-    page_icon="🇮🇳",
-    layout="wide",
+    page_title="Historical Flood Risk Analysis",
+    page_icon="🕰️",
+    layout="wide"
 )
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
+# --- MODEL AND DATA LOADING ---
 @st.cache_resource(show_spinner=False)
 def load_models():
     models = {}
@@ -44,51 +45,10 @@ def load_feature_columns():
     with open(path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-@st.cache_data(show_spinner=False)
-def get_coords(city_name: str):
-    geolocator = Nominatim(user_agent="aqua_flood_app")
-    try:
-        location = geolocator.geocode(city_name)
-        if location:
-            return float(location.latitude), float(location.longitude)
-    except Exception as e:
-        st.error(f"Geocoding error: {e}")
-    return None, None
+models = load_models()
+feature_columns = load_feature_columns()
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_rainfall_forecast(lat: float, lon: float):
-    """Return tomorrow's total precipitation (mm) using Open-Meteo daily precipitation_sum."""
-    cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
-    session = retry(cache_session, retries=5, backoff_factor=0.2)
-    client = openmeteo_requests.Client(session=session)
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "daily": "precipitation_sum",
-        "forecast_days": 2,
-    }
-    responses = client.weather_api(url, params=params)
-    # API can return a list; pick the first response object
-    response = responses[0] if isinstance(responses, (list, tuple)) else responses
-    daily = response.Daily()
-    precip = daily.Variables(0).ValuesAsNumpy()
-    # Index 1 is tomorrow when available; otherwise fallback to first value
-    val = precip[1] if getattr(precip, 'shape', None) and precip.shape[0] > 1 else precip[0]
-    return float(val)
-
-# Map rainfall (mm) to MonsoonIntensity feature scale [0..16]
-def map_rainfall_to_intensity(rainfall_mm: float) -> int:
-    if rainfall_mm <= 10: return 2
-    elif rainfall_mm <= 25: return 4
-    elif rainfall_mm <= 50: return 6
-    elif rainfall_mm <= 75: return 8
-    elif rainfall_mm <= 100: return 10
-    elif rainfall_mm <= 150: return 12
-    elif rainfall_mm <= 200: return 14
-    else: return 16
-
-# === START: NEW CITY_PROFILES DICTIONARY ===
+# --- CITY PROFILES (copied from India Live page) ---
 CITY_PROFILES = {
     "Mumbai": {
         'TopographyDrainage': 4, 'RiverManagement': 5, 'Deforestation': 12, 'Urbanization': 17,
@@ -331,182 +291,144 @@ CITY_PROFILES = {
         'InadequatePlanning': 10, 'PoliticalFactors': 8
     }
 }
-# === END: NEW CITY_PROFILES DICTIONARY ===
 
-models = load_models()
-feature_columns = load_feature_columns()
+# --- HELPERS ---
+@st.cache_data(show_spinner=False)
+def get_coords(city_name: str):
+    geolocator = Nominatim(user_agent="aqua_historical_app")
+    try:
+        location = geolocator.geocode(city_name)
+        if location:
+            return float(location.latitude), float(location.longitude)
+    except Exception:
+        pass
+    return None, None
 
-st.title('🇮🇳 India Live Flood Forecast')
-st.write("Select a city to fetch tomorrow's rainfall via Open‑Meteo, map it to Monsoon Intensity,\nthen simulate a neighborhood heatmap using the city's risk profile and our ML models.")
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_historical_rainfall(lat: float, lon: float, date: datetime.date):
+    """Fetch historical daily rainfall (mm) for a specific date using Open-Meteo Archive API."""
+    try:
+        cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
+        session = retry(cache_session, retries=5, backoff_factor=0.2)
+        client = openmeteo_requests.Client(session=session)
+
+        url = "https://archive-api.open-meteo.com/v1/archive"
+        ds = date.strftime('%Y-%m-%d')
+        params = {
+            "latitude": lat,
+            "longitude": lon,
+            "start_date": ds,
+            "end_date": ds,
+            "daily": "precipitation_sum",
+            "timezone": "auto",
+        }
+
+        responses = client.weather_api(url, params=params)
+        response = responses[0] if isinstance(responses, (list, tuple)) else responses
+        daily = response.Daily()
+        precip = daily.Variables(0).ValuesAsNumpy()
+        if getattr(precip, 'size', 0) > 0:
+            return float(precip[0])
+        return None
+    except Exception as e:
+        st.error(f"Historical weather fetch failed: {e}")
+        return None
+
+def map_rainfall_to_intensity(rainfall_mm: float) -> int:
+    if rainfall_mm <= 10: return 2
+    elif rainfall_mm <= 25: return 4
+    elif rainfall_mm <= 50: return 6
+    elif rainfall_mm <= 75: return 8
+    elif rainfall_mm <= 100: return 10
+    elif rainfall_mm <= 150: return 12
+    elif rainfall_mm <= 200: return 14
+    else: return 16
+
+def predict_prob(mdl, X: pd.DataFrame):
+    if hasattr(mdl, 'predict_proba'):
+        vals = mdl.predict_proba(X)[:, 1]
+    else:
+        vals = mdl.predict(X)
+    arr = np.clip(np.asarray(vals, dtype=float), 0.0, 1.0)
+    return arr
+
+# --- USER INTERFACE ---
+st.title('🕰️ Historical Event Analyzer')
+st.write("Select a city and a past date to analyze what the flood risk prediction would have been based on the recorded rainfall for that day.")
 
 # Sidebar controls
-st.sidebar.header('Forecast Controls')
+st.sidebar.header("Analysis Controls")
+_cities = list(CITY_PROFILES.keys())
+city_selection = st.sidebar.selectbox("Choose a city", _cities, index=0)
 
-# City search + dropdown (type to search)
-_all_cities = list(CITY_PROFILES.keys())
-city_query = st.sidebar.text_input('Search city (from predefined list)', placeholder='Start typing e.g., Mumbai')
-if city_query.strip():
-    filtered = [c for c in _all_cities if city_query.strip().lower() in c.lower()]
-    if not filtered:
-        st.sidebar.info('No match found. Showing all cities.')
-        filtered = _all_cities
-else:
-    filtered = _all_cities
-city_selection = st.sidebar.selectbox('Choose a city', filtered, index=0, help='You can type to search')
+# Open-Meteo historical data typically has ~5 day delay
+max_date = datetime.date.today() - datetime.timedelta(days=5)
+selected_date = st.sidebar.date_input(
+    "Select a date for analysis",
+    value=max_date,
+    min_value=datetime.date(1940, 1, 1),
+    max_value=max_date
+)
 
-grid_size = st.sidebar.slider('Grid Size (N x N)', min_value=10, max_value=35, value=15, step=5)
+model_options = ['Ensemble (Average)'] + list(models.keys()) if len(models) > 1 else list(models.keys())
+model_choice = st.sidebar.selectbox("Select Model for Analysis", model_options)
 
-# Model selection (includes Ensemble)
-available_models = list(models.keys())
-model_options = ['Ensemble (average)'] + available_models if len(available_models) > 1 else available_models
-chosen_model = st.sidebar.selectbox('Model to use', model_options, help='Pick a single model or use the ensemble average')
-
-# Map layer style
-map_style_opt = st.sidebar.selectbox('Map layer', ['Heatmap', 'Hexagon', 'Scatter'], index=0,
-                                     help='Switch between heatmap, hexagon binning, or scatter visualization')
-
-if st.button(f'Get Forecast for {city_selection}', type='primary'):
+if st.button(f"Analyze Risk for {city_selection} on {selected_date.strftime('%Y-%m-%d')}", use_container_width=True):
     lat, lon = get_coords(city_selection)
     if lat is None:
         st.error('Could not geocode the selected city.')
         st.stop()
 
-    with st.spinner(f'Fetching Open‑Meteo rainfall for {city_selection}...'):
-        rainfall_mm = get_rainfall_forecast(lat, lon)
+    with st.spinner(f'Fetching historical rainfall for {city_selection}...'):
+        rainfall_mm = get_historical_rainfall(lat, lon, selected_date)
 
-    st.success(f"Tomorrow rainfall in {city_selection}: {rainfall_mm:.1f} mm (Open‑Meteo)")
+    if rainfall_mm is None:
+        st.error('No rainfall data available for the selected date. Please try another date.')
+        st.stop()
+
+    st.success(f"Recorded rainfall on {selected_date.strftime('%Y-%m-%d')}: {rainfall_mm:.2f} mm (Open‑Meteo Archive)")
+
+    # Build model input from city profile + derived MonsoonIntensity
     monsoon_intensity = map_rainfall_to_intensity(rainfall_mm)
+    base = CITY_PROFILES[city_selection].copy()
+    base['MonsoonIntensity'] = monsoon_intensity
+    input_df = pd.DataFrame([base])
 
-    # Build grid around city center
-    lat_range = np.linspace(lat - 0.1, lat + 0.1, grid_size)
-    lon_range = np.linspace(lon - 0.1, lon + 0.1, grid_size)
-    lon_grid, lat_grid = np.meshgrid(lon_range, lat_range)
-    grid_df = pd.DataFrame({'latitude': lat_grid.ravel(), 'longitude': lon_grid.ravel()})
-
-    # Assemble prediction dataframe using city profile as baseline + MonsoonIntensity
-    prediction_data = grid_df.copy()
-    base = CITY_PROFILES[city_selection]
-    for feature, value in base.items():
-        prediction_data[feature] = value
-    prediction_data['MonsoonIntensity'] = monsoon_intensity
-
-    # Add slight intra-city variation to make map realistic
-    rng = np.random.default_rng(42)
-    vary_features = [
-        'TopographyDrainage', 'DrainageSystems', 'PopulationScore', 'Urbanization', 'Encroachments'
-    ]
-    variation_factor = 0.15
-    for feature in vary_features:
-        if feature in prediction_data.columns and feature in base:
-            noise = rng.normal(0.0, max(1.0, base[feature]) * variation_factor, len(prediction_data))
-            prediction_data[feature] = np.clip(prediction_data[feature] + noise, 0, 20)
-
-    # Ensure feature alignment
-    model_input = prediction_data.copy()
+    # Align to feature columns
     for col in feature_columns:
-        if col not in model_input.columns:
-            model_input[col] = 0
-    model_input = model_input[feature_columns]
+        if col not in input_df.columns:
+            input_df[col] = 0
+    input_df = input_df[feature_columns]
 
-    # Predict with selected model or ensemble
-    def predict_prob(mdl, X):
-        if hasattr(mdl, 'predict_proba'):
-            return mdl.predict_proba(X)[:, 1]
-        vals = mdl.predict(X)
-        return np.clip(np.asarray(vals, dtype=float), 0.0, 1.0)
-
-    if chosen_model == 'Ensemble (average)' and len(available_models) > 1:
-        preds_list = []
+    # Predict
+    if model_choice == 'Ensemble (Average)' and len(models) > 1:
+        preds = []
         for name, mdl in models.items():
             try:
-                preds_list.append(predict_prob(mdl, model_input))
+                preds.append(predict_prob(mdl, input_df))
             except Exception:
                 pass
-        if not preds_list:
+        if not preds:
             st.error('No models available to generate predictions.')
             st.stop()
-        preds = np.mean(np.vstack(preds_list), axis=0)
+        final_arr = np.mean(np.vstack(preds), axis=0)
     else:
-        # Single model path
-        if chosen_model not in models:
-            st.error('Selected model is not available. Try Ensemble or another model.')
+        if model_choice not in models:
+            st.error('Selected model is not available.')
             st.stop()
-        preds = predict_prob(models[chosen_model], model_input)
+        final_arr = predict_prob(models[model_choice], input_df)
 
-    prediction_data['risk'] = preds
-    overall_risk = float(np.mean(preds))
+    final_proba = float(np.clip(final_arr[0], 0.0, 1.0))
 
-    st.header(f'Flood Risk Prediction for {city_selection}')
-    if overall_risk >= 0.55:
-        st.error(f"HIGH OVERALL RISK ({overall_risk:.1%})")
-    elif overall_risk >= 0.45:
-        st.warning(f"MODERATE OVERALL RISK ({overall_risk:.1%})")
+    # Display
+    st.header('Retrospective Flood Risk Analysis')
+    st.metric("Predicted Risk", f"{final_proba:.1%}")
+
+    if final_proba < 0.45:
+        st.success("CONCLUSION: LOW RISK")
+    elif final_proba < 0.55:
+        st.warning("CONCLUSION: MODERATE RISK")
     else:
-        st.success(f"LOW OVERALL RISK ({overall_risk:.1%})")
+        st.error("CONCLUSION: HIGH RISK")
 
-    # Map visualization
-    st.subheader("Simulated Risk Distribution Map")
-    if map_style_opt == 'Heatmap':
-        layer = pdk.Layer(
-            'HeatmapLayer',
-            data=prediction_data,
-            get_position='[longitude, latitude]',
-            get_weight='risk',
-            opacity=0.85,
-            aggregation=pdk.types.String('MEAN'),
-        )
-    elif map_style_opt == 'Hexagon':
-        layer = pdk.Layer(
-            'HexagonLayer',
-            data=prediction_data,
-            get_position='[longitude, latitude]',
-            elevation_scale=50,
-            elevation_range=[0, 3000],
-            extruded=True,
-            radius=200,
-            get_elevation='risk * 3000',
-            get_color='[risk * 255, (1-risk) * 255, 120]'
-        )
-    else:
-        layer = pdk.Layer(
-            'ScatterplotLayer',
-            data=prediction_data,
-            get_position='[longitude, latitude]',
-            get_fill_color='[risk * 255, (1-risk) * 255, 120, 200]',
-            get_radius=120,
-            pickable=True,
-        )
-
-    view_state = pdk.ViewState(
-        latitude=float(prediction_data['latitude'].mean()),
-        longitude=float(prediction_data['longitude'].mean()),
-        zoom=10,
-        pitch=45,
-    )
-
-    deck = pdk.Deck(
-        map_style=None,  # no Mapbox key required
-        initial_view_state=view_state,
-        layers=[layer],
-        tooltip={
-            'html': '<b>Risk:</b> {risk}',
-            'style': {'color': 'white'}
-        },
-    )
-    st.pydeck_chart(deck)
-
-    # Quick metrics row
-    m1, m2, m3 = st.columns(3)
-    m1.metric('Tomorrow Rainfall', f"{rainfall_mm:.1f} mm")
-    m2.metric('Monsoon Intensity', f"{monsoon_intensity}")
-    m3.metric('Overall Risk', f"{overall_risk:.1%}")
-
-    st.caption('Tip: Use the sidebar to switch the model (single vs ensemble) and map layer style.')
-
-    # Optional: allow download
-    st.download_button(
-        label='Download predictions CSV',
-        data=prediction_data.to_csv(index=False).encode('utf-8'),
-        file_name=f'{city_selection}_risk_grid.csv',
-        mime='text/csv'
-    )
+    st.info("This prediction is based on the city's static risk profile combined with the actual rainfall recorded on the selected date.")
