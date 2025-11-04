@@ -416,25 +416,57 @@ if st.button(f"Analyze Risk for {city_selection} on {selected_date.strftime('%Y-
             input_df[col] = 0
     input_df = input_df[feature_columns]
 
-    # Predict
+    # === START: NEW CALIBRATED PREDICTION LOGIC ===
+    # Create a baseline scenario with zero rainfall (MonsoonIntensity = 0)
+    baseline_input = input_df.copy()
+    baseline_input['MonsoonIntensity'] = 0
+
+    # Calculate baseline risk (inherent city risk without rainfall)
+    baseline_preds = []
     if model_choice == 'Ensemble (Average)' and len(models) > 1:
-        preds = []
+        # Ensemble mode: get baseline from all models
         for name, mdl in models.items():
             try:
-                preds.append(predict_prob(mdl, input_df))
+                baseline_preds.append(predict_prob(mdl, baseline_input))
             except Exception:
                 pass
-        if not preds:
-            st.error('No models available to generate predictions.')
-            st.stop()
-        final_arr = np.mean(np.vstack(preds), axis=0)
     else:
+        # Single model mode
         if model_choice not in models:
             st.error('Selected model is not available.')
             st.stop()
-        final_arr = predict_prob(models[model_choice], input_df)
+        try:
+            baseline_preds.append(predict_prob(models[model_choice], baseline_input))
+        except Exception:
+            pass
 
-    final_proba = float(np.clip(final_arr[0], 0.0, 1.0))
+    # Calculate mean baseline risk
+    if baseline_preds:
+        baseline_risk = float(np.mean(np.vstack(baseline_preds)))
+    else:
+        baseline_risk = 0.0
+
+    # Calculate actual risk with real historical rainfall
+    actual_preds = []
+    if model_choice == 'Ensemble (Average)' and len(models) > 1:
+        for name, mdl in models.items():
+            try:
+                actual_preds.append(predict_prob(mdl, input_df))
+            except Exception:
+                pass
+        if not actual_preds:
+            st.error('No models available to generate predictions.')
+            st.stop()
+        final_arr_raw = np.mean(np.vstack(actual_preds), axis=0)
+    else:
+        final_arr_raw = predict_prob(models[model_choice], input_df)
+
+    # Calibrate: subtract baseline to get rainfall-induced risk only
+    # Clip at 0 to prevent negative probabilities
+    final_arr = np.clip(final_arr_raw - baseline_risk, 0.0, 1.0)
+    # === END: NEW CALIBRATED PREDICTION LOGIC ===
+
+    final_proba = float(final_arr[0])
 
     # Display
     st.header('Retrospective Flood Risk Analysis')

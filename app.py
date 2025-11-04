@@ -428,23 +428,58 @@ if st.button(f'Get Forecast for {city_selection}', type='primary'):
         vals = mdl.predict(X)
         return np.clip(np.asarray(vals, dtype=float), 0.0, 1.0)
 
+    # === START: NEW CALIBRATED PREDICTION LOGIC ===
+    # Create a baseline scenario with zero rainfall (MonsoonIntensity = 0)
+    baseline_input = model_input.copy()
+    baseline_input['MonsoonIntensity'] = 0
+
+    # Calculate baseline risk (inherent city risk without rainfall)
+    baseline_preds_list = []
     if chosen_model == 'Ensemble (average)' and len(available_models) > 1:
-        preds_list = []
+        # Ensemble mode: get baseline from all models
         for name, mdl in models.items():
             try:
-                preds_list.append(predict_prob(mdl, model_input))
+                baseline_preds_list.append(predict_prob(mdl, baseline_input))
             except Exception:
                 pass
-        if not preds_list:
-            st.error('No models available to generate predictions.')
-            st.stop()
-        preds = np.mean(np.vstack(preds_list), axis=0)
     else:
-        # Single model path
+        # Single model mode
         if chosen_model not in models:
             st.error('Selected model is not available. Try Ensemble or another model.')
             st.stop()
-        preds = predict_prob(models[chosen_model], model_input)
+        try:
+            baseline_preds_list.append(predict_prob(models[chosen_model], baseline_input))
+        except Exception:
+            pass
+
+    # Calculate mean baseline risk across all grid points and models
+    if baseline_preds_list:
+        baseline_risk = float(np.mean(np.vstack(baseline_preds_list)))
+    else:
+        baseline_risk = 0.0
+
+    # Calculate actual risk with real rainfall forecast
+    actual_preds_list = []
+    if chosen_model == 'Ensemble (average)' and len(available_models) > 1:
+        # Ensemble mode: get predictions from all models
+        for name, mdl in models.items():
+            try:
+                actual_preds_list.append(predict_prob(mdl, model_input))
+            except Exception:
+                pass
+        if not actual_preds_list:
+            st.error('No models available to generate predictions.')
+            st.stop()
+        preds_raw = np.mean(np.vstack(actual_preds_list), axis=0)
+    else:
+        # Single model mode
+        preds_raw = predict_prob(models[chosen_model], model_input)
+
+    # Calibrate: subtract baseline to get rainfall-induced risk only
+    # Clip at 0 to prevent negative probabilities
+    preds = np.clip(preds_raw - baseline_risk, 0.0, 1.0)
+    
+    # === END: NEW CALIBRATED PREDICTION LOGIC ===
 
     prediction_data['risk'] = preds
     overall_risk = float(np.mean(preds))
