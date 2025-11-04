@@ -4,8 +4,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import torch
-import torch.nn as nn
 from geopy.geocoders import Nominatim
 import openmeteo_requests
 import requests_cache
@@ -13,6 +11,27 @@ from retry_requests import retry
 import datetime
 import json
 import os
+
+# Try to import PyTorch, show error if not available
+try:
+    import torch
+    import torch.nn as nn
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    st.error("⚠️ PyTorch is not installed. The LSTM model cannot be loaded.")
+    st.info("""
+    **To use this page, PyTorch must be installed.**
+    
+    If you're running this locally:
+    ```
+    pip install torch
+    ```
+    
+    If on Streamlit Cloud, please wait for the dependencies to install (may take a few minutes).
+    The app will automatically reload once installation is complete.
+    """)
+    st.stop()
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
