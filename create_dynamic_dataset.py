@@ -69,14 +69,49 @@ def load_feature_columns():
         return None
 
 def get_coords(city_name: str):
-    """Geocode a city name to latitude/longitude using Nominatim"""
-    geolocator = Nominatim(user_agent="aqua_project_dataset_generator")
-    try:
-        location = geolocator.geocode(city_name)
-        if location:
-            return float(location.latitude), float(location.longitude)
-    except Exception as e:
-        print(f"✗ Geocoding error for {city_name}: {e}")
+    """Get coordinates for a city (hardcoded to avoid geocoding API issues)"""
+    # Complete list of all 32 cities with their coordinates
+    CITY_COORDS = {
+        'Mumbai': (19.0760, 72.8777),
+        'Kolkata': (22.5726, 88.3639),
+        'Chennai': (13.0827, 80.2707),
+        'Surat': (21.1702, 72.8311),
+        'Patna': (25.5941, 85.1376),
+        'Guwahati': (26.1445, 91.7362),
+        'Delhi': (28.7041, 77.1025),
+        'Bengaluru': (12.9716, 77.5946),
+        'Hyderabad': (17.3850, 78.4867),
+        'Ahmedabad': (23.0225, 72.5714),
+        'Pune': (18.5204, 73.8567),
+        'Jaipur': (26.9124, 75.7873),
+        'Lucknow': (26.8467, 80.9462),
+        'Kanpur': (26.4499, 80.3319),
+        'Nagpur': (21.1458, 79.0882),
+        'Indore': (22.7196, 75.8577),
+        'Thane': (19.2183, 72.9781),
+        'Bhopal': (23.2599, 77.4126),
+        'Visakhapatnam': (17.6869, 83.2185),
+        'Vadodara': (22.3072, 73.1812),
+        'Ghaziabad': (28.6692, 77.4538),
+        'Ludhiana': (30.9010, 75.8573),
+        'Agra': (27.1767, 78.0081),
+        'Nashik': (19.9975, 73.7898),
+        'Faridabad': (28.4089, 77.3178),
+        'Meerut': (28.9845, 77.7064),
+        'Rajkot': (22.3039, 70.8022),
+        'Varanasi': (25.3176, 82.9739),
+        'Srinagar': (34.0837, 74.7973),
+        'Aurangabad': (19.8762, 75.3433),
+        'Goa': (15.2993, 74.1240),
+        'Navi Mumbai': (19.0330, 73.0297),
+    }
+    
+    # Return hardcoded coordinates
+    if city_name in CITY_COORDS:
+        return CITY_COORDS[city_name]
+    
+    # Fallback error if city not found
+    print(f"✗ City '{city_name}' not found in coordinates database")
     return None, None
 
 def map_rainfall_to_intensity(rainfall_mm: float) -> int:
@@ -97,7 +132,7 @@ CITY_PROFILES = {
         'ClimateChange': 13, 'DamsQuality': 9, 'Siltation': 14, 'AgriculturalPractices': 2,
         'Encroachments': 16, 'IneffectiveDisasterPreparedness': 11, 'DrainageSystems': 5,
         'CoastalVulnerability': 17, 'Landslides': 7, 'Watersheds': 6,
-        'DeterioratingWaterQuality': 13, 'PopulationScore': 18, 'WetlandLoss': 15,
+        'DeterioratingInfrastructure': 13, 'PopulationScore': 18, 'WetlandLoss': 15,
         'InadequatePlanning': 14, 'PoliticalFactors': 10
     },
     "Kolkata": {
@@ -105,7 +140,7 @@ CITY_PROFILES = {
         'ClimateChange': 14, 'DamsQuality': 8, 'Siltation': 15, 'AgriculturalPractices': 4,
         'Encroachments': 15, 'IneffectiveDisasterPreparedness': 12, 'DrainageSystems': 6,
         'CoastalVulnerability': 16, 'Landslides': 2, 'Watersheds': 5,
-        'DeterioratingWaterQuality': 14, 'PopulationScore': 17, 'WetlandLoss': 16,
+        'DeterioratingInfrastructure': 14, 'PopulationScore': 17, 'WetlandLoss': 16,
         'InadequatePlanning': 13, 'PoliticalFactors': 11
     },
     "Chennai": {
@@ -113,7 +148,7 @@ CITY_PROFILES = {
         'ClimateChange': 15, 'DamsQuality': 10, 'Siltation': 13, 'AgriculturalPractices': 5,
         'Encroachments': 14, 'IneffectiveDisasterPreparedness': 10, 'DrainageSystems': 7,
         'CoastalVulnerability': 18, 'Landslides': 3, 'Watersheds': 7,
-        'DeterioratingWaterQuality': 12, 'PopulationScore': 16, 'WetlandLoss': 14,
+        'DeterioratingInfrastructure': 12, 'PopulationScore': 16, 'WetlandLoss': 14,
         'InadequatePlanning': 12, 'PoliticalFactors': 9
     },
     "Surat": {
@@ -121,7 +156,7 @@ CITY_PROFILES = {
         'ClimateChange': 12, 'DamsQuality': 11, 'Siltation': 12, 'AgriculturalPractices': 7,
         'Encroachments': 13, 'IneffectiveDisasterPreparedness': 13, 'DrainageSystems': 9,
         'CoastalVulnerability': 15, 'Landslides': 4, 'Watersheds': 8,
-        'DeterioratingWaterQuality': 10, 'PopulationScore': 15, 'WetlandLoss': 12,
+        'DeterioratingInfrastructure': 10, 'PopulationScore': 15, 'WetlandLoss': 12,
         'InadequatePlanning': 10, 'PoliticalFactors': 8
     },
     "Patna": {
@@ -129,7 +164,7 @@ CITY_PROFILES = {
         'ClimateChange': 13, 'DamsQuality': 7, 'Siltation': 16, 'AgriculturalPractices': 10,
         'Encroachments': 17, 'IneffectiveDisasterPreparedness': 9, 'DrainageSystems': 4,
         'CoastalVulnerability': 2, 'Landslides': 2, 'Watersheds': 4,
-        'DeterioratingWaterQuality': 15, 'PopulationScore': 16, 'WetlandLoss': 13,
+        'DeterioratingInfrastructure': 15, 'PopulationScore': 16, 'WetlandLoss': 13,
         'InadequatePlanning': 15, 'PoliticalFactors': 12
     },
     "Guwahati": {
@@ -137,7 +172,7 @@ CITY_PROFILES = {
         'ClimateChange': 14, 'DamsQuality': 8, 'Siltation': 15, 'AgriculturalPractices': 8,
         'Encroachments': 15, 'IneffectiveDisasterPreparedness': 8, 'DrainageSystems': 5,
         'CoastalVulnerability': 1, 'Landslides': 12, 'Watersheds': 5,
-        'DeterioratingWaterQuality': 13, 'PopulationScore': 14, 'WetlandLoss': 14,
+        'DeterioratingInfrastructure': 13, 'PopulationScore': 14, 'WetlandLoss': 14,
         'InadequatePlanning': 14, 'PoliticalFactors': 11
     },
     "Delhi": {
@@ -145,7 +180,7 @@ CITY_PROFILES = {
         'ClimateChange': 14, 'DamsQuality': 10, 'Siltation': 13, 'AgriculturalPractices': 6,
         'Encroachments': 16, 'IneffectiveDisasterPreparedness': 12, 'DrainageSystems': 8,
         'CoastalVulnerability': 1, 'Landslides': 3, 'Watersheds': 7,
-        'DeterioratingWaterQuality': 16, 'PopulationScore': 19, 'WetlandLoss': 17,
+        'DeterioratingInfrastructure': 16, 'PopulationScore': 19, 'WetlandLoss': 17,
         'InadequatePlanning': 13, 'PoliticalFactors': 13
     },
     "Bengaluru": {
@@ -153,7 +188,7 @@ CITY_PROFILES = {
         'ClimateChange': 11, 'DamsQuality': 12, 'Siltation': 10, 'AgriculturalPractices': 4,
         'Encroachments': 18, 'IneffectiveDisasterPreparedness': 14, 'DrainageSystems': 7,
         'CoastalVulnerability': 1, 'Landslides': 2, 'Watersheds': 9,
-        'DeterioratingWaterQuality': 11, 'PopulationScore': 17, 'WetlandLoss': 18,
+        'DeterioratingInfrastructure': 11, 'PopulationScore': 17, 'WetlandLoss': 18,
         'InadequatePlanning': 16, 'PoliticalFactors': 9
     },
     "Hyderabad": {
@@ -161,7 +196,7 @@ CITY_PROFILES = {
         'ClimateChange': 12, 'DamsQuality': 11, 'Siltation': 11, 'AgriculturalPractices': 7,
         'Encroachments': 15, 'IneffectiveDisasterPreparedness': 13, 'DrainageSystems': 8,
         'CoastalVulnerability': 1, 'Landslides': 5, 'Watersheds': 8,
-        'DeterioratingWaterQuality': 12, 'PopulationScore': 16, 'WetlandLoss': 16,
+        'DeterioratingInfrastructure': 12, 'PopulationScore': 16, 'WetlandLoss': 16,
         'InadequatePlanning': 11, 'PoliticalFactors': 10
     },
     "Ahmedabad": {
@@ -169,7 +204,7 @@ CITY_PROFILES = {
         'ClimateChange': 11, 'DamsQuality': 13, 'Siltation': 9, 'AgriculturalPractices': 9,
         'Encroachments': 12, 'IneffectiveDisasterPreparedness': 14, 'DrainageSystems': 10,
         'CoastalVulnerability': 3, 'Landslides': 1, 'Watersheds': 10,
-        'DeterioratingWaterQuality': 10, 'PopulationScore': 16, 'WetlandLoss': 11,
+        'DeterioratingInfrastructure': 10, 'PopulationScore': 16, 'WetlandLoss': 11,
         'InadequatePlanning': 9, 'PoliticalFactors': 7
     },
     "Pune": {
@@ -177,7 +212,7 @@ CITY_PROFILES = {
         'ClimateChange': 10, 'DamsQuality': 14, 'Siltation': 8, 'AgriculturalPractices': 6,
         'Encroachments': 14, 'IneffectiveDisasterPreparedness': 15, 'DrainageSystems': 9,
         'CoastalVulnerability': 1, 'Landslides': 10, 'Watersheds': 12,
-        'DeterioratingWaterQuality': 9, 'PopulationScore': 15, 'WetlandLoss': 13,
+        'DeterioratingInfrastructure': 9, 'PopulationScore': 15, 'WetlandLoss': 13,
         'InadequatePlanning': 10, 'PoliticalFactors': 8
     },
     "Jaipur": {
@@ -185,7 +220,7 @@ CITY_PROFILES = {
         'ClimateChange': 10, 'DamsQuality': 9, 'Siltation': 7, 'AgriculturalPractices': 11,
         'Encroachments': 11, 'IneffectiveDisasterPreparedness': 11, 'DrainageSystems': 7,
         'CoastalVulnerability': 1, 'Landslides': 4, 'Watersheds': 9,
-        'DeterioratingWaterQuality': 8, 'PopulationScore': 14, 'WetlandLoss': 10,
+        'DeterioratingInfrastructure': 8, 'PopulationScore': 14, 'WetlandLoss': 10,
         'InadequatePlanning': 12, 'PoliticalFactors': 9
     },
     "Lucknow": {
@@ -193,7 +228,7 @@ CITY_PROFILES = {
         'ClimateChange': 11, 'DamsQuality': 8, 'Siltation': 12, 'AgriculturalPractices': 12,
         'Encroachments': 13, 'IneffectiveDisasterPreparedness': 10, 'DrainageSystems': 6,
         'CoastalVulnerability': 1, 'Landslides': 1, 'Watersheds': 6,
-        'DeterioratingWaterQuality': 11, 'PopulationScore': 15, 'WetlandLoss': 12,
+        'DeterioratingInfrastructure': 11, 'PopulationScore': 15, 'WetlandLoss': 12,
         'InadequatePlanning': 13, 'PoliticalFactors': 11
     },
     "Kanpur": {
@@ -201,7 +236,7 @@ CITY_PROFILES = {
         'ClimateChange': 12, 'DamsQuality': 7, 'Siltation': 14, 'AgriculturalPractices': 13,
         'Encroachments': 14, 'IneffectiveDisasterPreparedness': 9, 'DrainageSystems': 5,
         'CoastalVulnerability': 1, 'Landslides': 1, 'Watersheds': 5,
-        'DeterioratingWaterQuality': 17, 'PopulationScore': 16, 'WetlandLoss': 13,
+        'DeterioratingInfrastructure': 17, 'PopulationScore': 16, 'WetlandLoss': 13,
         'InadequatePlanning': 14, 'PoliticalFactors': 12
     },
     "Nagpur": {
@@ -209,7 +244,7 @@ CITY_PROFILES = {
         'ClimateChange': 10, 'DamsQuality': 12, 'Siltation': 7, 'AgriculturalPractices': 10,
         'Encroachments': 10, 'IneffectiveDisasterPreparedness': 12, 'DrainageSystems': 9,
         'CoastalVulnerability': 1, 'Landslides': 3, 'Watersheds': 11,
-        'DeterioratingWaterQuality': 9, 'PopulationScore': 14, 'WetlandLoss': 9,
+        'DeterioratingInfrastructure': 9, 'PopulationScore': 14, 'WetlandLoss': 9,
         'InadequatePlanning': 8, 'PoliticalFactors': 7
     },
     "Indore": {
@@ -217,7 +252,7 @@ CITY_PROFILES = {
         'ClimateChange': 9, 'DamsQuality': 11, 'Siltation': 6, 'AgriculturalPractices': 11,
         'Encroachments': 9, 'IneffectiveDisasterPreparedness': 13, 'DrainageSystems': 10,
         'CoastalVulnerability': 1, 'Landslides': 2, 'Watersheds': 10,
-        'DeterioratingWaterQuality': 8, 'PopulationScore': 13, 'WetlandLoss': 8,
+        'DeterioratingInfrastructure': 8, 'PopulationScore': 13, 'WetlandLoss': 8,
         'InadequatePlanning': 7, 'PoliticalFactors': 6
     },
     "Thane": {
@@ -225,7 +260,7 @@ CITY_PROFILES = {
         'ClimateChange': 13, 'DamsQuality': 10, 'Siltation': 12, 'AgriculturalPractices': 3,
         'Encroachments': 15, 'IneffectiveDisasterPreparedness': 11, 'DrainageSystems': 7,
         'CoastalVulnerability': 16, 'Landslides': 8, 'Watersheds': 7,
-        'DeterioratingWaterQuality': 12, 'PopulationScore': 17, 'WetlandLoss': 14,
+        'DeterioratingInfrastructure': 12, 'PopulationScore': 17, 'WetlandLoss': 14,
         'InadequatePlanning': 13, 'PoliticalFactors': 9
     },
     "Bhopal": {
@@ -233,7 +268,7 @@ CITY_PROFILES = {
         'ClimateChange': 10, 'DamsQuality': 13, 'Siltation': 5, 'AgriculturalPractices': 9,
         'Encroachments': 8, 'IneffectiveDisasterPreparedness': 12, 'DrainageSystems': 11,
         'CoastalVulnerability': 1, 'Landslides': 2, 'Watersheds': 13,
-        'DeterioratingWaterQuality': 7, 'PopulationScore': 13, 'WetlandLoss': 7,
+        'DeterioratingInfrastructure': 7, 'PopulationScore': 13, 'WetlandLoss': 7,
         'InadequatePlanning': 8, 'PoliticalFactors': 7
     },
     "Visakhapatnam": {
@@ -241,7 +276,7 @@ CITY_PROFILES = {
         'ClimateChange': 14, 'DamsQuality': 11, 'Siltation': 10, 'AgriculturalPractices': 6,
         'Encroachments': 12, 'IneffectiveDisasterPreparedness': 12, 'DrainageSystems': 8,
         'CoastalVulnerability': 18, 'Landslides': 11, 'Watersheds': 8,
-        'DeterioratingWaterQuality': 11, 'PopulationScore': 15, 'WetlandLoss': 11,
+        'DeterioratingInfrastructure': 11, 'PopulationScore': 15, 'WetlandLoss': 11,
         'InadequatePlanning': 11, 'PoliticalFactors': 8
     },
     "Vadodara": {
@@ -249,7 +284,7 @@ CITY_PROFILES = {
         'ClimateChange': 11, 'DamsQuality': 12, 'Siltation': 8, 'AgriculturalPractices': 10,
         'Encroachments': 11, 'IneffectiveDisasterPreparedness': 13, 'DrainageSystems': 9,
         'CoastalVulnerability': 2, 'Landslides': 1, 'Watersheds': 9,
-        'DeterioratingWaterQuality': 9, 'PopulationScore': 14, 'WetlandLoss': 10,
+        'DeterioratingInfrastructure': 9, 'PopulationScore': 14, 'WetlandLoss': 10,
         'InadequatePlanning': 9, 'PoliticalFactors': 7
     },
     "Ghaziabad": {
@@ -257,7 +292,7 @@ CITY_PROFILES = {
         'ClimateChange': 13, 'DamsQuality': 8, 'Siltation': 13, 'AgriculturalPractices': 8,
         'Encroachments': 15, 'IneffectiveDisasterPreparedness': 10, 'DrainageSystems': 6,
         'CoastalVulnerability': 1, 'Landslides': 2, 'Watersheds': 6,
-        'DeterioratingWaterQuality': 15, 'PopulationScore': 18, 'WetlandLoss': 14,
+        'DeterioratingInfrastructure': 15, 'PopulationScore': 18, 'WetlandLoss': 14,
         'InadequatePlanning': 14, 'PoliticalFactors': 12
     },
     "Ludhiana": {
@@ -265,7 +300,7 @@ CITY_PROFILES = {
         'ClimateChange': 10, 'DamsQuality': 9, 'Siltation': 9, 'AgriculturalPractices': 14,
         'Encroachments': 12, 'IneffectiveDisasterPreparedness': 11, 'DrainageSystems': 7,
         'CoastalVulnerability': 1, 'Landslides': 1, 'Watersheds': 8,
-        'DeterioratingWaterQuality': 12, 'PopulationScore': 16, 'WetlandLoss': 9,
+        'DeterioratingInfrastructure': 12, 'PopulationScore': 16, 'WetlandLoss': 9,
         'InadequatePlanning': 11, 'PoliticalFactors': 10
     },
     "Agra": {
@@ -273,7 +308,7 @@ CITY_PROFILES = {
         'ClimateChange': 12, 'DamsQuality': 6, 'Siltation': 13, 'AgriculturalPractices': 11,
         'Encroachments': 13, 'IneffectiveDisasterPreparedness': 9, 'DrainageSystems': 6,
         'CoastalVulnerability': 1, 'Landslides': 2, 'Watersheds': 5,
-        'DeterioratingWaterQuality': 16, 'PopulationScore': 15, 'WetlandLoss': 11,
+        'DeterioratingInfrastructure': 16, 'PopulationScore': 15, 'WetlandLoss': 11,
         'InadequatePlanning': 13, 'PoliticalFactors': 11
     },
     "Nashik": {
@@ -281,7 +316,7 @@ CITY_PROFILES = {
         'ClimateChange': 10, 'DamsQuality': 13, 'Siltation': 7, 'AgriculturalPractices': 9,
         'Encroachments': 11, 'IneffectiveDisasterPreparedness': 12, 'DrainageSystems': 9,
         'CoastalVulnerability': 1, 'Landslides': 9, 'Watersheds': 11,
-        'DeterioratingWaterQuality': 8, 'PopulationScore': 14, 'WetlandLoss': 10,
+        'DeterioratingInfrastructure': 8, 'PopulationScore': 14, 'WetlandLoss': 10,
         'InadequatePlanning': 9, 'PoliticalFactors': 8
     },
     "Faridabad": {
@@ -289,7 +324,7 @@ CITY_PROFILES = {
         'ClimateChange': 13, 'DamsQuality': 8, 'Siltation': 12, 'AgriculturalPractices': 7,
         'Encroachments': 14, 'IneffectiveDisasterPreparedness': 10, 'DrainageSystems': 7,
         'CoastalVulnerability': 1, 'Landslides': 3, 'Watersheds': 6,
-        'DeterioratingWaterQuality': 14, 'PopulationScore': 17, 'WetlandLoss': 13,
+        'DeterioratingInfrastructure': 14, 'PopulationScore': 17, 'WetlandLoss': 13,
         'InadequatePlanning': 13, 'PoliticalFactors': 11
     },
     "Meerut": {
@@ -297,7 +332,7 @@ CITY_PROFILES = {
         'ClimateChange': 11, 'DamsQuality': 7, 'Siltation': 11, 'AgriculturalPractices': 13,
         'Encroachments': 12, 'IneffectiveDisasterPreparedness': 9, 'DrainageSystems': 6,
         'CoastalVulnerability': 1, 'Landslides': 1, 'Watersheds': 7,
-        'DeterioratingWaterQuality': 13, 'PopulationScore': 15, 'WetlandLoss': 10,
+        'DeterioratingInfrastructure': 13, 'PopulationScore': 15, 'WetlandLoss': 10,
         'InadequatePlanning': 12, 'PoliticalFactors': 10
     },
     "Rajkot": {
@@ -305,7 +340,7 @@ CITY_PROFILES = {
         'ClimateChange': 10, 'DamsQuality': 11, 'Siltation': 7, 'AgriculturalPractices': 12,
         'Encroachments': 10, 'IneffectiveDisasterPreparedness': 12, 'DrainageSystems': 9,
         'CoastalVulnerability': 4, 'Landslides': 2, 'Watersheds': 9,
-        'DeterioratingWaterQuality': 9, 'PopulationScore': 14, 'WetlandLoss': 9,
+        'DeterioratingInfrastructure': 9, 'PopulationScore': 14, 'WetlandLoss': 9,
         'InadequatePlanning': 8, 'PoliticalFactors': 7
     },
     "Varanasi": {
@@ -313,7 +348,7 @@ CITY_PROFILES = {
         'ClimateChange': 13, 'DamsQuality': 6, 'Siltation': 17, 'AgriculturalPractices': 11,
         'Encroachments': 18, 'IneffectiveDisasterPreparedness': 8, 'DrainageSystems': 4,
         'CoastalVulnerability': 1, 'Landslides': 2, 'Watersheds': 3,
-        'DeterioratingWaterQuality': 18, 'PopulationScore': 17, 'WetlandLoss': 15,
+        'DeterioratingInfrastructure': 18, 'PopulationScore': 17, 'WetlandLoss': 15,
         'InadequatePlanning': 16, 'PoliticalFactors': 13
     },
     "Srinagar": {
@@ -321,7 +356,7 @@ CITY_PROFILES = {
         'ClimateChange': 15, 'DamsQuality': 10, 'Siltation': 12, 'AgriculturalPractices': 7,
         'Encroachments': 13, 'IneffectiveDisasterPreparedness': 7, 'DrainageSystems': 7,
         'CoastalVulnerability': 1, 'Landslides': 14, 'Watersheds': 10,
-        'DeterioratingWaterQuality': 11, 'PopulationScore': 12, 'WetlandLoss': 12,
+        'DeterioratingInfrastructure': 11, 'PopulationScore': 12, 'WetlandLoss': 12,
         'InadequatePlanning': 13, 'PoliticalFactors': 14
     },
     "Aurangabad": {
@@ -329,7 +364,7 @@ CITY_PROFILES = {
         'ClimateChange': 9, 'DamsQuality': 10, 'Siltation': 8, 'AgriculturalPractices': 10,
         'Encroachments': 9, 'IneffectiveDisasterPreparedness': 11, 'DrainageSystems': 8,
         'CoastalVulnerability': 1, 'Landslides': 5, 'Watersheds': 9,
-        'DeterioratingWaterQuality': 10, 'PopulationScore': 13, 'WetlandLoss': 9,
+        'DeterioratingInfrastructure': 10, 'PopulationScore': 13, 'WetlandLoss': 9,
         'InadequatePlanning': 10, 'PoliticalFactors': 8
     },
     "Goa": {
@@ -337,7 +372,7 @@ CITY_PROFILES = {
         'ClimateChange': 14, 'DamsQuality': 9, 'Siltation': 10, 'AgriculturalPractices': 7,
         'Encroachments': 12, 'IneffectiveDisasterPreparedness': 10, 'DrainageSystems': 8,
         'CoastalVulnerability': 18, 'Landslides': 10, 'Watersheds': 8,
-        'DeterioratingWaterQuality': 11, 'PopulationScore': 12, 'WetlandLoss': 13,
+        'DeterioratingInfrastructure': 11, 'PopulationScore': 12, 'WetlandLoss': 13,
         'InadequatePlanning': 11, 'PoliticalFactors': 9
     },
     "Navi Mumbai": {
@@ -345,7 +380,7 @@ CITY_PROFILES = {
         'ClimateChange': 13, 'DamsQuality': 10, 'Siltation': 12, 'AgriculturalPractices': 3,
         'Encroachments': 13, 'IneffectiveDisasterPreparedness': 10, 'DrainageSystems': 8,
         'CoastalVulnerability': 17, 'Landslides': 6, 'Watersheds': 7,
-        'DeterioratingWaterQuality': 12, 'PopulationScore': 17, 'WetlandLoss': 14,
+        'DeterioratingInfrastructure': 12, 'PopulationScore': 17, 'WetlandLoss': 14,
         'InadequatePlanning': 10, 'PoliticalFactors': 9
     }
 }
@@ -390,7 +425,18 @@ def get_historical_rainfall_range(lat, lon, start_date, end_date):
         daily = response.Daily()
         daily_precipitation_sum = daily.Variables(0).ValuesAsNumpy()
         
-        dates = pd.to_datetime(daily.Time(), unit="s")
+        # Get the time range - returns start timestamp
+        daily_time = daily.Time()
+        
+        # Calculate number of days from the data array length
+        num_days = len(daily_precipitation_sum)
+        
+        # Create date range starting from daily_time
+        dates = pd.date_range(
+            start=pd.to_datetime(daily_time, unit="s"),
+            periods=num_days,
+            freq='D'
+        )
         
         if len(dates) == 0:
             print(f"  ✗ No data returned for coordinates ({lat}, {lon})")
