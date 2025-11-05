@@ -71,8 +71,30 @@ class FloodLSTM(nn.Module):
 # ==============================================================================
 @st.cache_resource
 def load_lstm_system():
-    """Loads the trained PyTorch model and scalers."""
+    """Loads the trained PyTorch model and scalers, downloads from GitHub release if missing."""
+    import os
+    import urllib.request
+    
+    # GitHub Release URLs for model files
+    MODEL_URLS = {
+        'lstm_model_best.pth': 'https://github.com/Rishiveer-2003/aqua_project/releases/download/v1.0/lstm_model_best.pth',
+        'lstm_scaler_X.pkl': 'https://github.com/Rishiveer-2003/aqua_project/releases/download/v1.0/lstm_scaler_X.pkl',
+        'lstm_scaler_y.pkl': 'https://github.com/Rishiveer-2003/aqua_project/releases/download/v1.0/lstm_scaler_y.pkl'
+    }
+    
     try:
+        # Check and download missing files
+        for filename, url in MODEL_URLS.items():
+            if not os.path.exists(filename):
+                st.info(f"📥 Downloading {filename} from GitHub Release...")
+                try:
+                    urllib.request.urlretrieve(url, filename)
+                    st.success(f"✅ Downloaded {filename}")
+                except Exception as download_err:
+                    st.warning(f"⚠️ Could not download {filename}: {download_err}")
+                    st.info("Model files should be uploaded as a GitHub Release or the model needs retraining.")
+                    return None, None, None, None
+        
         # Determine device
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
@@ -88,7 +110,7 @@ def load_lstm_system():
         return model, scaler_X, scaler_y, device
     except FileNotFoundError as e:
         st.error(f"❌ Error loading model files: {e}")
-        st.info("Please ensure 'lstm_model_best.pth', 'lstm_scaler_X.pkl', and 'lstm_scaler_y.pkl' are in the root folder.")
+        st.info("Please ensure model files are available as a GitHub Release at v1.0 tag.")
         return None, None, None, None
     except Exception as e:
         st.error(f"❌ An unexpected error occurred: {e}")
