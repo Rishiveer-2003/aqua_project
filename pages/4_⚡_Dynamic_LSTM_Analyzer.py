@@ -302,7 +302,7 @@ else:
                     # Create a dataframe for the chart
                     date_range = [selected_date - datetime.timedelta(days=i) for i in range(6, -1, -1)]
                     chart_data = pd.DataFrame({
-                        'Date': date_range,
+                        'Date': pd.to_datetime(date_range),
                         'Rainfall (mm)': rainfall_7_days
                     })
                     
@@ -311,8 +311,9 @@ else:
                     
                     # Display data table
                     with st.expander("📋 View detailed rainfall data"):
-                        chart_data['Date'] = chart_data['Date'].dt.strftime('%Y-%m-%d')
-                        st.dataframe(chart_data, use_container_width=True)
+                        display_data = chart_data.copy()
+                        display_data['Date'] = display_data['Date'].dt.strftime('%Y-%m-%d')
+                        st.dataframe(display_data, use_container_width=True)
                         st.caption(f"Total 7-day rainfall: {rainfall_7_days.sum():.2f} mm")
 
                 # --- PREDICTION LOGIC ---
