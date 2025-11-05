@@ -11,5 +11,5 @@ geopy>=2.4,<3
 openmeteo-requests>=1.2,<2
 requests-cache>=1.2,<2
 retry-requests>=2.0,<3
-torch==2.2.0
-torchvision==0.17.0
+torch>=2.5.0
+torchvision>=0.20.0
